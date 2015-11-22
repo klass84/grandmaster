@@ -1,0 +1,78 @@
+---
+title: "Machine Learn Project"
+date: "November 20, 2015"
+output: html_document
+---
+# Data Processing
+
+First step in data processing part is to is to load all the library we are going to need plus the training and test set data. Albeit not properly consistent with the principle of reproducibility we assume that the data has been already loaded in the work directory that the user is going to use.
+
+```{r,echo=TRUE}
+set.seed(1234)
+library(caret)
+library(randomForest)
+library(rattle)
+library(rpart)
+Traing<-read.csv("pml-training.csv",sep=",",header=T,na.strings=c("NA",""))
+Tst<-read.csv("pml-testing.csv",sep=",",header=T,na.strings=c("NA",""))
+```
+
+In order to proceed with our prediction it is important to erase from our database all the elements/columns that are redundant (qualitative/non variance, partial or where the number of NA values are more than 50% of database).
+
+```{r,echo=TRUE}
+Vr0<-nearZeroVar(Traing,saveMetrics = TRUE)
+Tg<-Traing[,-Vr0$nzv]
+
+for (i in ncol(Tg):1){
+ if (sum( is.na( Tg[, i] ) ) /nrow(Tg) >= 0.6){
+   Tg<-Tg[,-i]
+ }
+}
+Tg<-Tg[,-(1:5)]
+
+```
+
+The next step is to proceed with taking a subsample of the training data that we will use for *cross validation*.
+
+```{r,echo=TRUE}
+cvcreat<- createDataPartition(Tg$classe, p=0.60, list=FALSE)
+tring<- Tg[cvcreat,]
+cvlid<- Tg[-cvcreat,]
+```
+
+# Model selection
+
+As we have seen during the course, *Random Forest* is one of the most accurate algorithms in town. In this case we will try to understand which is the most accurate between this method and the *Decision Tree*.
+
+## Decision Tree
+
+Now let's try on our training data this algorithm using caret library
+```{r,echo=TRUE}
+modFit <- rpart(classe ~ ., method="class",data=tring)
+fancyRpartPlot(modFit)
+```
+
+now we try to test this model to the validation test and then we use the Confusion matrix to understand the accuracy of this model.
+
+```{r,echo=TRUE}
+fcst<-predict(modFit, cvlid, type = "class")
+confusionMatrix(fcst, cvlid$classe)
+```
+
+as we can see the accuracy of this algorithm does not reach 74%. So lets try *Random Forest*.
+
+## Random Forest
+
+Let's apply the same logic above with this method.
+
+```{r,echo=TRUE}
+modFit2 <- randomForest(classe ~ ., data=tring, type="class", importance=T)
+fcst2<-predict(modFit2, cvlid)
+confusionMatrix(fcst2, cvlid$classe)
+```
+As we can see in this case we have an accuracy of 99.66% so this is the model we are going to use. Below the prediction used to submitt the second part of the project
+
+```{r,echo=TRUE}
+modFitFinal <-predict(modFit2, Tst)
+```
+
